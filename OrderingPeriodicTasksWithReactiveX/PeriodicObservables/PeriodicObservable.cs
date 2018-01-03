@@ -26,7 +26,7 @@ namespace PeriodicObservables
                     .Timer(TimeSpan.Zero, period)
                     .Select(_ => operation(disposable.Token))
                     .Concat()
-                    .Subscribe(observer.OnNext, disposable.Token);
+                    .Subscribe(observer.OnNext, observer.OnError, disposable.Token);
                 return disposable;
             });
         }
@@ -101,7 +101,7 @@ namespace PeriodicObservables
                             observer.OnNext(result);
 
                             // This operation will cancel on either an operation or master level cancellation
-                        }, combinedDisposable.Token);
+                        }, observer.OnError, combinedDisposable.Token);
                     }, masterDisposable.Token);
 
                 return masterDisposable;
