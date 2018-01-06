@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.Linq;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Threading;
@@ -79,23 +78,19 @@ namespace PeriodicObservables
                                 operationDisposable.Token);
 
                         operationObservableQueue.Enqueue(new Tuple<IObservable<TResult>, IDisposable>(
-                            operationObservable, 
+                            operationObservable,
                             operationDisposable));
 
                         // When an operation completes cancel all previous operations, dequeue, and return result
-                        operationObservable.Subscribe(result =>
+                        operationObservable
+                        .Synchronize(gate: operationObservableQueue)
+                        .Subscribe(result =>
                         {
-                            lock (operationObservableQueue)
+                            Tuple<IObservable<TResult>, IDisposable> lastDequeued = null;
+                            while (lastDequeued?.Item1 != operationObservable)
                             {
-                                // Prevent race condition if multiple operations finish simultaneously
-                                if (operationObservableQueue.All(pair => pair.Item1 != operationObservable)) return;
-
-                                Tuple<IObservable<TResult>, IDisposable> lastDequeued = null;
-                                while (lastDequeued?.Item1 != operationObservable)
-                                {
-                                    operationObservableQueue.TryDequeue(out lastDequeued);
-                                    lastDequeued.Item2.Dispose();
-                                }
+                                operationObservableQueue.TryDequeue(out lastDequeued);
+                                lastDequeued.Item2.Dispose();
                             }
 
                             observer.OnNext(result);
